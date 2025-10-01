@@ -42,6 +42,18 @@
         <div class="pill">ดึงข้อมูลอัตโนมัติจาก Google Sheet</div>
       </div>
       <div class="body">
+        <!-- เลือกร้าน -->
+        <label>เลือกร้าน</label>
+        <select id="shopSelect" disabled>
+          <option value="">— กำลังโหลดร้าน —</option>
+        </select>
+
+        <!-- เอกสารอ้างอิง -->
+        <label style="margin-top:12px;">เอกสารอ้างอิง</label>
+        <input id="docRef" type="text" placeholder="เช่น SO01234" />
+
+        <div class="divider"></div>
+
         <div id="items-container"></div>
         <button style="margin-top:8px" onclick="addItem()">+ เพิ่มรายการสินค้า</button>
         <div class="divider"></div>
@@ -54,11 +66,13 @@
   <script>
     const SPREADSHEET_ID = "1I9jAyU7UHXxbizMxpT5RghoyfnnYkBPetS39hS1BzH0";
     const SHEET_NAME = "ListItem";
+    const COMPANY_SHEET = "CompanyName"; // sheet ร้านค้า
     const WEBHOOK_URL = "https://n8n-p2sw2ng.p2scalw2ng.xyz/webhook-test/OrderSell";
     let productList = [];
+    let shopList = [];
 
-    async function fetchListItems() {
-      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    async function fetchListItems(sheet){
+      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}`;
       const res = await fetch(url);
       const text = await res.text();
       const jsonStr = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
@@ -66,11 +80,20 @@
       return (data.table.rows || [])
         .map(r => {
           const c = r.c || [];
-          const sku = (c[0] && (c[0].f ?? String(c[0].v ?? ""))).trim();
-          const name = (c[1] && (c[1].f ?? String(c[1].v ?? ""))).trim();
-          return { sku, name };
-        })
-        .filter(x => x.sku && x.sku.toLowerCase() !== "sku" && x.name.toLowerCase() !== "nameproduct");
+          return c.map(cc => (cc ? (cc.f ?? String(cc.v ?? "")).trim() : ""));
+        });
+    }
+
+    async function loadProducts(){
+      const rows = await fetchListItems(SHEET_NAME);
+      return rows.map(r=>({sku:r[0], name:r[1]}))
+                 .filter(x=>x.sku && x.name && x.sku.toLowerCase()!=="sku");
+    }
+
+    async function loadShops(){
+      const rows = await fetchListItems(COMPANY_SHEET);
+      return rows.map(r=>({shop:r[0]}))
+                 .filter(x=>x.shop && x.shop.toLowerCase()!=="ร้าน");
     }
 
     function buildItemBlock(){
@@ -99,7 +122,7 @@
       return div;
     }
 
-    function fillOptions(select){
+    function fillProductOptions(select){
       select.innerHTML = `<option value="">— เลือกสินค้า —</option>`;
       productList.forEach(r=>{
         const opt=document.createElement('option');
@@ -116,7 +139,7 @@
       const block = buildItemBlock();
       container.appendChild(block);
       const select = block.querySelector('.product');
-      fillOptions(select);
+      fillProductOptions(select);
       select.addEventListener('change',()=>{
         const name=select.selectedOptions[0]?.dataset?.name||"";
         const selInfo=block.querySelector('.selectedInfo');
@@ -130,11 +153,14 @@
     }
 
     function checkBtnSubmit(){
+      const shop = document.getElementById('shopSelect').value;
       const hasSelect = [...document.querySelectorAll('.product')].some(s=>s.value);
-      document.getElementById('btnSubmit').disabled = !hasSelect;
+      document.getElementById('btnSubmit').disabled = !shop || !hasSelect;
     }
 
     async function submitPayload(){
+      const shop = document.getElementById('shopSelect').value;
+      const docRef = document.getElementById('docRef').value;
       const payloads = [...document.querySelectorAll('#items-container .card')].map(b=>{
         const s = b.querySelector('.product');
         const sku = s.value;
@@ -142,7 +168,7 @@
         const qtyInput = parseInt(b.querySelector('.qty').value || "0", 10);
         const qty = -Math.abs(qtyInput); // ติดลบเสมอ
         const note = b.querySelector('.note').value;
-        return { action:"order_sell", sku, name, qty, note, timestamp_iso:new Date().toISOString() };
+        return { action:"order_sell", shop, doc_ref: docRef, sku, name, qty, note, timestamp_iso:new Date().toISOString() };
       }).filter(x=>x.sku);
       const resultDiv = document.getElementById('result');
 
@@ -164,8 +190,21 @@
     document.getElementById('btnSubmit').addEventListener('click',submitPayload);
 
     (async function init(){
-      productList = await fetchListItems();
-      addItem(); // เริ่มต้นให้มี 1 บรรทัด
+      productList = await loadProducts();
+      shopList = await loadShops();
+      // fill shops
+      const shopSelect = document.getElementById('shopSelect');
+      shopSelect.innerHTML = `<option value="">— เลือกร้าน —</option>`;
+      shopList.forEach(s=>{
+        const opt = document.createElement('option');
+        opt.value = s.shop;
+        opt.textContent = s.shop;
+        shopSelect.appendChild(opt);
+      });
+      shopSelect.disabled = shopList.length===0;
+      shopSelect.addEventListener('change', checkBtnSubmit);
+
+      addItem(); // เริ่มต้นมี 1 บรรทัด
     })();
   </script>
 </body>
