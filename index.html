@@ -32,6 +32,13 @@
     .remove-btn{background:#e74c3c;margin-top:10px}
     .invalid{border-color:#ff8a8a !important;box-shadow:0 0 0 3px rgba(255,0,0,.12) !important}
     .item-title{font-weight:700;margin:6px 0 10px;color:#ff3b30}
+
+    /* autocomplete */
+    .ac-wrap{position:relative}
+    .ac-input{width:100%}
+    .ac-list{position:absolute;left:0;right:0;z-index:1000;max-height:240px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:8px;margin-top:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);display:none}
+    .ac-item{padding:8px 12px;cursor:pointer}
+    .ac-item:hover,.ac-item[aria-selected="true"]{background:#ffeef0}
   </style>
 </head>
 <body>
@@ -63,172 +70,142 @@
     </div>
   </div>
 
-  <script>
-    const SPREADSHEET_ID = "1I9jAyU7UHXxbizMxpT5RghoyfnnYkBPetS39hS1BzH0";
-    const SHEET_NAME = "ListItem";
-    const COMPANY_SHEET = "CompanyName";
-    const WEBHOOK_URL = "https://n8n-p2sw2ng.p2scalw2ng.xyz/webhook-test/OrderSell";
-    let productList = [];
-    let shopList = [];
+<script>
+const SPREADSHEET_ID = "1I9jAyU7UHXxbizMxpT5RghoyfnnYkBPetS39hS1BzH0";
+const ITEM_SHEET = "ListItem";
+const SHOP_SHEET = "CompanyName";
+const WEBHOOK_URL = "https://n8n-p2sw2ng.p2scalw2ng.xyz/webhook-test/OrderSell";
+const AC_LIMIT = 1500;
+let productList=[], shopList=[];
 
-    async function fetchListItems(sheet){
-      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}`;
-      const res = await fetch(url);
-      const text = await res.text();
-      const jsonStr = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
-      const data = JSON.parse(jsonStr);
-      return (data.table.rows || [])
-        .map(r => {
-          const c = r.c || [];
-          return c.map(cc => (cc ? (cc.f ?? String(cc.v ?? "")).trim() : ""));
-        });
-    }
+async function fetchSheet(sheet){
+  const url=`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheet)}`;
+  const res=await fetch(url); const text=await res.text();
+  const jsonStr=text.substring(text.indexOf("{"), text.lastIndexOf("}")+1);
+  const data=JSON.parse(jsonStr); return data.table.rows||[];
+}
+async function loadProducts(){
+  const rows=await fetchSheet(ITEM_SHEET);
+  return rows.map(r=>{
+    const c=r.c||[];
+    return {sku:(c[0]?.f??String(c[0]?.v??"")).trim(),name:(c[1]?.f??String(c[1]?.v??"")).trim()};
+  }).filter(x=>x.sku&&x.name);
+}
+async function loadShops(){
+  const rows=await fetchSheet(SHOP_SHEET);
+  return rows.map(r=>{const c=r.c||[];return (c[0]?.f??String(c[0]?.v??"")).trim();}).filter(s=>s&&s!=="ร้าน"&&s.toLowerCase()!=="shop");
+}
 
-    async function loadProducts(){
-      const rows = await fetchListItems(SHEET_NAME);
-      return rows.map(r=>({sku:r[0], name:r[1]}))
-                 .filter(x=>x.sku && x.name && x.sku.toLowerCase()!=="sku");
-    }
-
-    async function loadShops(){
-      const rows = await fetchListItems(COMPANY_SHEET);
-      return rows.map(r=>({shop:r[0]}))
-                 .filter(x=>x.shop && x.shop.toLowerCase()!=="ร้าน");
-    }
-
-    function buildItemBlock(){
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.innerHTML = `
-        <div class="body">
-          <div class="item-title"></div>
-          <label>เลือกรายการสินค้า</label>
-          <select class="product" required>
-            <option value="">— เลือกสินค้า —</option>
-          </select>
-          <div class="selected selectedInfo" style="display:none"></div>
-          <div class="row">
-            <div>
-              <label>จำนวน</label>
-              <input class="qty" type="number" min="1" step="1" placeholder="เช่น 5" required />
-            </div>
-            <div>
-              <label>หมายเหตุ (ถ้ามี)</label>
-              <input class="note" type="text" placeholder="เช่น ขายสินค้า, ลดสต็อก" />
-            </div>
-          </div>
-          <button class="remove-btn" onclick="this.closest('.card').remove();renumberItems();checkBtnSubmit()">ลบรายการนี้</button>
+function buildItemBlock(){
+  const div=document.createElement('div');
+  div.className='card';
+  div.innerHTML=`
+    <div class="body">
+      <div class="item-title"></div>
+      <label>ค้นหาสินค้า (ชื่อหรือรหัส)</label>
+      <div class="ac-wrap">
+        <input class="ac-input" type="text" placeholder="พิมพ์ชื่อ หรือ รหัสสินค้า" autocomplete="off"/>
+        <div class="ac-list"></div>
+      </div>
+      <div class="selected selectedInfo" style="display:none"></div>
+      <div class="row">
+        <div>
+          <label>จำนวน</label>
+          <input class="qty" type="number" min="1" step="1" placeholder="เช่น 5" required />
         </div>
-      `;
-      return div;
-    }
+        <div>
+          <label>หมายเหตุ (ถ้ามี)</label>
+          <input class="note" type="text" placeholder="เช่น ขายสินค้า, ลดสต็อก" />
+        </div>
+      </div>
+      <button class="remove-btn" onclick="this.closest('.card').remove();renumberItems();checkBtnSubmit()">ลบรายการนี้</button>
+    </div>`;
+  div.dataset.sku=""; div.dataset.name="";
+  return div;
+}
 
-    function fillProductOptions(select){
-      select.innerHTML = `<option value="">— เลือกสินค้า —</option>`;
-      productList.forEach(r=>{
-        const opt=document.createElement('option');
-        opt.value=r.sku;
-        opt.dataset.name=r.name;
-        opt.textContent=`${r.name} — ${r.sku}`;
-        select.appendChild(opt);
+function attachAutocomplete(block){
+  const input=block.querySelector('.ac-input');
+  const list=block.querySelector('.ac-list');
+  const selInfo=block.querySelector('.selectedInfo');
+  let activeIndex=-1;
+  function close(){list.style.display='none';}
+  function render(items){
+    list.innerHTML=""; if(!items.length){close();return;}
+    items.forEach((p,i)=>{
+      const el=document.createElement('div');
+      el.className='ac-item'; el.textContent=`${p.name} — ${p.sku}`;
+      el.addEventListener('mousedown',e=>{
+        e.preventDefault();
+        input.value=`${p.name} — ${p.sku}`;
+        block.dataset.sku=p.sku; block.dataset.name=p.name;
+        selInfo.style.display='block'; selInfo.textContent=`เลือกแล้ว: ${p.name} (${p.sku})`;
+        close(); checkBtnSubmit();
       });
-      select.disabled = productList.length===0;
-    }
+      list.appendChild(el);
+    });
+    list.style.display='block';
+  }
+  input.addEventListener('input',()=>{
+    const t=input.value.toLowerCase().trim();
+    const out=productList.filter(p=>p.name.toLowerCase().includes(t)||p.sku.toLowerCase().includes(t)).slice(0,AC_LIMIT);
+    render(out);
+  });
+  input.addEventListener('focus',()=>input.dispatchEvent(new Event('input')));
+  input.addEventListener('blur',()=>setTimeout(close,150));
+}
 
-    function addItem(){
-      const container = document.getElementById('items-container');
-      const block = buildItemBlock();
-      container.appendChild(block);
-      const select = block.querySelector('.product');
-      fillProductOptions(select);
-      select.addEventListener('change',()=>{
-        const name=select.selectedOptions[0]?.dataset?.name||"";
-        const selInfo=block.querySelector('.selectedInfo');
-        if(select.value){
-          selInfo.style.display='block';
-          selInfo.textContent=`เลือกแล้ว: ${name} (รหัส: ${select.value})`;
-        }else selInfo.style.display='none';
-        checkBtnSubmit();
-      });
-      renumberItems();
-      checkBtnSubmit();
-    }
+function addItem(){
+  const c=document.getElementById('items-container');
+  const b=buildItemBlock(); c.appendChild(b);
+  attachAutocomplete(b); renumberItems(); checkBtnSubmit();
+}
+function renumberItems(){
+  document.querySelectorAll('#items-container .item-title').forEach((el,i)=>el.textContent=`รายการที่ ${i+1}`);
+}
+function validateForm(showErrors=false){
+  let ok=true; const errs=[]; const result=document.getElementById('result');
+  document.querySelectorAll('.invalid').forEach(el=>el.classList.remove('invalid'));
+  const shop=document.getElementById('shopSelect'),doc=document.getElementById('docRef');
+  if(!shop.value){ok=false;errs.push('กรุณาเลือกร้าน');if(showErrors)shop.classList.add('invalid');}
+  if(!doc.value.trim()){ok=false;errs.push('กรุณากรอกเอกสารอ้างอิง');if(showErrors)doc.classList.add('invalid');}
+  const blocks=[...document.querySelectorAll('#items-container .card')];
+  if(!blocks.length){ok=false;errs.push('กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ');}
+  else blocks.forEach((b,i)=>{
+    if(!b.dataset.sku){ok=false;errs.push(`รายการที่ ${i+1}: กรุณาเลือกสินค้า`);if(showErrors)b.querySelector('.ac-input').classList.add('invalid');}
+    const qty=parseInt(b.querySelector('.qty').value||"0",10);
+    if(!(qty>=1)){ok=false;errs.push(`รายการที่ ${i+1}: กรอกจำนวน ≥ 1`);if(showErrors)b.querySelector('.qty').classList.add('invalid');}
+  });
+  if(showErrors&&errs.length)result.innerHTML=`<div class="error">${errs.join("<br>")}</div>`; else if(showErrors)result.innerHTML="";
+  return ok;
+}
+function checkBtnSubmit(){document.getElementById('btnSubmit').disabled=!validateForm(false);}
+async function submitPayload(){
+  if(!validateForm(true))return;
+  const shop=document.getElementById('shopSelect').value,doc=document.getElementById('docRef').value;
+  const payloads=[...document.querySelectorAll('#items-container .card')].map(b=>({
+    action:"order_sell",shop,doc_ref:doc,sku:b.dataset.sku,name:b.dataset.name,
+    qty:-Math.abs(parseInt(b.querySelector('.qty').value||"0",10)),
+    note:b.querySelector('.note').value,
+    timestamp_iso:new Date().toISOString()
+  })).filter(x=>x.sku);
+  try{
+    const r=await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payloads)});
+    const text=await r.text(); let js={};try{js=JSON.parse(text);}catch{}
+    document.getElementById('result').innerHTML=`<div class="success">ส่งสำเร็จ 🎉<br><pre>${JSON.stringify(js||text,null,2)}</pre></div>`;
+  }catch(e){document.getElementById('result').innerHTML=`<div class="error">ส่งไม่สำเร็จ: ${e.message}</div>`;}
+}
 
-    function renumberItems(){
-      document.querySelectorAll('#items-container .card .item-title')
-        .forEach((el, idx)=> el.textContent = `รายการที่ ${idx+1}`);
-    }
+document.getElementById('btnSubmit').addEventListener('click',submitPayload);
 
-    function validateForm(showErrors=false){
-      let ok=true;
-      const errs=[];
-      const resultDiv=document.getElementById('result');
-      document.querySelectorAll('.invalid').forEach(el=>el.classList.remove('invalid'));
-
-      const shop=document.getElementById('shopSelect');
-      const docRef=document.getElementById('docRef');
-      if(!shop.value){ok=false;errs.push('กรุณา "เลือกร้าน"'); if(showErrors) shop.classList.add('invalid');}
-      if(!docRef.value.trim()){ok=false;errs.push('กรุณากรอก "เอกสารอ้างอิง"'); if(showErrors) docRef.classList.add('invalid');}
-
-      const blocks=[...document.querySelectorAll('#items-container .card')];
-      if(blocks.length===0){ok=false;errs.push('กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ');}
-      else{
-        blocks.forEach((b,idx)=>{
-          const prod=b.querySelector('.product');
-          const qty=b.querySelector('.qty');
-          const val=parseInt(qty.value||"0",10);
-          if(!prod.value){ok=false;errs.push(`รายการที่ ${idx+1}: กรุณาเลือกสินค้า`); if(showErrors) prod.classList.add('invalid');}
-          if(!(val>=1)){ok=false;errs.push(`รายการที่ ${idx+1}: กรุณากรอกจำนวนอย่างน้อย 1`); if(showErrors) qty.classList.add('invalid');}
-        });
-      }
-
-      if(showErrors && errs.length){resultDiv.innerHTML=`<div class="error">${errs.join("<br>")}</div>`;}
-      else if(showErrors){resultDiv.innerHTML="";}
-      return ok;
-    }
-
-    function checkBtnSubmit(){
-      document.getElementById('btnSubmit').disabled=!validateForm(false);
-    }
-
-    async function submitPayload(){
-      if(!validateForm(true))return;
-      const shop=document.getElementById('shopSelect').value;
-      const docRef=document.getElementById('docRef').value;
-      const payloads=[...document.querySelectorAll('#items-container .card')].map(b=>{
-        const s=b.querySelector('.product');
-        const sku=s.value;
-        const name=s.selectedOptions[0]?.dataset?.name||"";
-        const qty=parseInt(b.querySelector('.qty').value||"0",10);
-        const note=b.querySelector('.note').value;
-        return{action:"order_sell",shop,doc_ref:docRef,sku,name,qty:-Math.abs(qty),note,timestamp_iso:new Date().toISOString()};
-      }).filter(x=>x.sku);
-      const resultDiv=document.getElementById('result');
-      try{
-        const resp=await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payloads)});
-        const text=await resp.text();
-        let respJson={};try{respJson=JSON.parse(text);}catch{}
-        resultDiv.innerHTML=`<div class="success">ส่งสำเร็จ 🎉<br><pre>${JSON.stringify(respJson||text,null,2)}</pre></div>`;
-      }catch(err){resultDiv.innerHTML=`<div class="error">ส่งไม่สำเร็จ: ${err.message}</div>`;}
-    }
-
-    document.getElementById('btnSubmit').addEventListener('click',submitPayload);
-
-    (async function init(){
-      productList=await loadProducts();
-      shopList=await loadShops();
-      const shopSelect=document.getElementById('shopSelect');
-      shopSelect.innerHTML=`<option value="">— เลือกร้าน —</option>`;
-      shopList.forEach(s=>{
-        const opt=document.createElement('option');
-        opt.value=s.shop; opt.textContent=s.shop;
-        shopSelect.appendChild(opt);
-      });
-      shopSelect.disabled=shopList.length===0;
-      shopSelect.addEventListener('change',checkBtnSubmit);
-      docRef.addEventListener('input',checkBtnSubmit);
-      addItem();
-    })();
-  </script>
+(async function init(){
+  productList=await loadProducts(); shopList=await loadShops();
+  const shopSel=document.getElementById('shopSelect');
+  shopSel.innerHTML=`<option value="">— เลือกร้าน —</option>`+shopList.map(s=>`<option>${s}</option>`).join('');
+  shopSel.disabled=shopList.length===0; shopSel.addEventListener('change',checkBtnSubmit);
+  docRef.addEventListener('input',checkBtnSubmit);
+  addItem();
+})();
+</script>
 </body>
 </html>
