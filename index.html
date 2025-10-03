@@ -34,11 +34,68 @@
     .item-title{font-weight:700;margin:6px 0 10px;color:#ff3b30}
 
     /* autocomplete */
-    .ac-wrap{position:relative}
-    .ac-input{width:100%}
-    .ac-list{position:absolute;left:0;right:0;z-index:1000;max-height:240px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:8px;margin-top:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);display:none}
-    .ac-item{padding:8px 12px;cursor:pointer}
-    .ac-item:hover,.ac-item[aria-selected="true"]{background:#ffeef0}
+    .ac-wrap {
+  position: relative;
+  font-size: 15px;
+}
+
+.ac-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+  background: #fff;
+}
+
+.ac-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px rgba(255, 59, 48, 0.15);
+}
+
+.ac-list {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  z-index: 2000;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  margin-top: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  animation: fadeDown 0.15s ease-in-out;
+}
+
+.ac-item {
+  padding: 12px 16px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ac-item:hover,
+.ac-item[aria-selected="true"] {
+  background: #fef3f2;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.ac-list::-webkit-scrollbar {
+  width: 8px;
+}
+.ac-list::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 6px;
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
   </style>
 </head>
 <body>
