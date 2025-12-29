@@ -3,325 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ติดตามสุขภาพผู้ป่วยโรคไต (Real-time)</title>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
+    <title>บันทึกสุขภาพผู้ป่วยโรคไต</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #007bff; --danger: #dc3545; --warning: #ffc107; --success: #28a745; --bg: #f4f6f9; --card-bg: #ffffff; --text-dark: #333; --text-grey: #666; }
-        body { font-family: 'Sarabun', sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: var(--text-dark); }
-        .container { max-width: 1200px; margin: 0 auto; background-color: var(--bg); }
+        :root {
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #fd7e14;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Sarabun', sans-serif; background-color: var(--bg-color); color: #333; line-height: 1.6; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
         
-        /* Header */
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; }
-        h1 { margin: 0; font-size: 1.5rem; color: var(--primary); }
-        .header-controls { display: flex; gap: 10px; align-items: center; }
+        header { text-align: center; margin-bottom: 25px; }
+        header h1 { color: var(--primary-color); font-size: 1.5rem; }
 
-        /* Buttons */
-        .btn-pdf { background-color: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 50px; cursor: pointer; font-family: 'Sarabun'; font-weight: bold; display: flex; align-items: center; gap: 5px; transition: 0.3s; white-space: nowrap; }
-        .btn-pdf:hover { background-color: #c82333; box-shadow: 0 4px 8px rgba(220,53,69,0.3); }
-        .filter-group { display: flex; gap: 5px; background: #fff; padding: 5px; border-radius: 50px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .btn-filter { border: none; background: transparent; padding: 8px 16px; border-radius: 50px; cursor: pointer; font-family: 'Sarabun'; font-weight: 600; color: var(--text-grey); transition: 0.3s; white-space: nowrap; }
-        .btn-filter.active { background: var(--primary); color: white; box-shadow: 0 2px 5px rgba(0,123,255,0.4); }
-
-        /* Layout Desktop */
-        .grid-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
-        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); text-align: center; position: relative; overflow: hidden; }
-        .card::before { content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; }
-        .card.weight::before { background: var(--warning); }
-        .card.dialysis::before { background: var(--primary); }
-        .card.sugar::before { background: var(--danger); }
-        .card h3 { margin: 0 0 5px; font-size: 0.9rem; color: var(--text-grey); font-weight: 500; }
-        .card .value { font-size: 2rem; font-weight: 700; color: var(--text-dark); }
-        .card .unit { font-size: 0.8rem; color: #999; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 1rem; font-weight: bold; }
-        .status-have { background: #d4edda; color: #155724; }
-        .status-none { background: #f8d7da; color: #721c24; }
+        .card { background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; border-left: 5px solid transparent; }
+        .card h2 { font-size: 1.1rem; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         
-        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .chart-box { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        .chart-box h3 { margin-top: 0; margin-bottom: 10px; font-size: 1rem; color: var(--text-grey); }
-        #loading { text-align: center; padding: 40px; }
+        /* สีแถบข้างการ์ด */
+        .card.vital-signs { border-left-color: var(--success-color); }
+        .card.sugar-check { border-left-color: var(--danger-color); }
+        .card.weight-control { border-left-color: var(--warning-color); }
+        .card.kidney-care { border-left-color: var(--primary-color); }
 
-        /* Mobile Styles */
-        @media (max-width: 768px) {
-            body { padding: 10px; }
-            header { flex-direction: column; align-items: stretch; gap: 10px; }
-            h1 { text-align: center; font-size: 1.3rem; }
-            .header-controls { flex-direction: column; width: 100%; }
-            .filter-group { width: 100%; justify-content: space-between; overflow-x: auto; }
-            .btn-filter { flex: 1; padding: 8px 10px; font-size: 0.9rem; }
-            .btn-pdf { width: 100%; justify-content: center; margin-top: 5px; }
-            .grid-cards { grid-template-columns: 1fr; gap: 10px; }
-            .card { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; text-align: left; }
-            .card h3 { margin: 0; }
-            .card .value { font-size: 1.5rem; }
-            .chart-grid { grid-template-columns: 1fr; gap: 15px; }
-            .chart-container-height { height: 250px !important; }
-            #bp-container { height: 250px !important; }
-        }
-
-        /* ========================================================= */
-        /* 🟡 PDF FORCE DESKTOP MODE (แก้ไขใหม่ บังคับความกว้างกราฟ) */
-        /* ========================================================= */
-        body.pdf-mode {
-            width: 1200px !important;
-            min-width: 1200px !important;
-            background-color: white !important;
-            padding: 20px !important;
-            margin: 0 !important;
-            overflow: visible !important;
-        }
-
-        body.pdf-mode .container {
-            width: 100% !important;
-            max-width: 1200px !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        /* บังคับ Layout กลับเป็นแบบ Desktop */
-        body.pdf-mode header { flex-direction: row !important; }
-        body.pdf-mode .grid-cards { grid-template-columns: repeat(3, 1fr) !important; gap: 15px !important; }
-        body.pdf-mode .card { display: block !important; text-align: center !important; }
-        body.pdf-mode .chart-grid { grid-template-columns: 1fr 1fr !important; gap: 15px !important; }
-
-        body.pdf-mode .chart-box {
-            width: auto !important;
-            flex: none !important;
-        }
+        .form-group { margin-bottom: 15px; }
+        .form-row { display: flex; gap: 15px; }
+        .col { flex: 1; }
         
-        body.pdf-mode #bp-container { height: 280px !important; width: 1100px !important; }
-        body.pdf-mode .chart-container-height { height: 220px !important; width: 520px !important; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 0.9rem; color: #555; }
+        
+        /* ช่องกรอกข้อมูล */
+        input[type="number"], input[type="date"], input[type="text"] {
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; font-family: 'Sarabun', sans-serif;
+            text-align: center;
+        }
+        /* ถ้าช่องไหน required แล้วยังไม่กรอก จะขึ้นขอบแดงจางๆ ให้รู้ */
+        input:invalid { border-color: #ffcccc; }
+        input:focus { outline: none; border-color: var(--primary-color); }
+
+        .input-wrapper { position: relative; }
+        .unit { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #888; font-size: 0.85rem; }
+
+        .bp-group { display: flex; align-items: center; gap: 5px; }
+        .bp-slash { font-size: 1.2rem; color: #888; font-weight: bold; }
+
+        .radio-group { display: flex; gap: 15px; flex-wrap: wrap; }
+        .radio-label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+        .btn-save {
+            width: 100%; padding: 15px; background-color: var(--primary-color); color: white;
+            border: none; border-radius: 50px; font-size: 1.1rem; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3); transition: all 0.2s;
+        }
+        .btn-save:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); display: none;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-box {
+            background: white; padding: 30px; border-radius: 20px; text-align: center;
+            width: 85%; max-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: popIn 0.3s ease;
+        }
+        .success-icon { font-size: 4rem; margin-bottom: 10px; display: block; }
+        .modal-btn {
+            background: var(--success-color); color: white; border: none; padding: 10px 30px;
+            border-radius: 50px; font-size: 1rem; margin-top: 20px; cursor: pointer; width: 100%;
+        }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
 
-<div id="capture-area">
-    <div class="container">
-        <header>
-            <h1>🏥 บันทึกสุขภาพไต</h1>
-            <div class="header-controls">
-                <div class="filter-group" id="controls-filter">
-                    <button id="btn-7" class="btn-filter" onclick="updateDashboard('7')">7 วัน</button>
-                    <button id="btn-15" class="btn-filter" onclick="updateDashboard('15')">15 วัน</button>
-                    <button id="btn-30" class="btn-filter" onclick="updateDashboard('30')">30 วัน</button>
-                    <button id="btn-all" class="btn-filter active" onclick="updateDashboard('all')">ทั้งหมด</button>
-                </div>
-                <button id="btn-export" class="btn-pdf" onclick="exportPDF()">📥 PDF</button>
-            </div>
-        </header>
+<div class="container">
+    <header>
+        <h1>📋 บันทึกสุขภาพประจำวัน</h1>
+        <p style="font-size: 0.9rem; color: #777;">สำหรับผู้ป่วยโรคไต</p>
+    </header>
 
-        <div id="loading">⏳ กำลังดึงข้อมูลล่าสุด...</div>
-
-        <div id="dashboard-content" style="display:none;">
-            <div class="grid-cards">
-                <div class="card weight">
-                    <div><h3>⚖️ น้ำหนัก</h3><span class="unit">กิโลกรัม</span></div>
-                    <div id="disp-weight" class="value">-</div>
+    <form id="healthForm">
+        
+        <div class="card vital-signs">
+            <h2>❤️ สัญญาณชีพ (Vital Signs)</h2>
+            <div class="form-row">
+                <div class="col">
+                    <label>ความดัน (บน / ล่าง) <span style="color:red">*</span></label>
+                    <div class="bp-group">
+                        <input type="number" id="bp_sys" placeholder="120" required>
+                        <span class="bp-slash">/</span>
+                        <input type="number" id="bp_dia" placeholder="80" required>
+                    </div>
                 </div>
-                <div class="card dialysis">
-                    <div><h3>🩸 เส้นฟอกไต</h3><span class="unit">สถานะปัจจุบัน</span></div>
-                    <div id="disp-line" class="status-badge">-</div>
-                </div>
-                <div class="card sugar">
-                    <div><h3>🍬 น้ำตาล</h3><span class="unit">mg/dL</span></div>
-                    <div id="disp-sugar" class="value">-</div>
+                <div class="col">
+                    <label>ชีพจร <span style="color:red">*</span></label>
+                    <div class="input-wrapper">
+                        <input type="number" id="pulse" placeholder="0" required>
+                        <span class="unit">ครั้ง/นาที</span>
+                    </div>
                 </div>
             </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>ออกซิเจนในเลือด (SpO2) <span style="color:red">*</span></label>
+                <div class="input-wrapper">
+                    <input type="number" id="spo2" placeholder="95-100" required>
+                    <span class="unit">%</span>
+                </div>
+            </div>
+        </div>
 
-            <div class="chart-grid">
-                <div class="chart-box" style="grid-column: 1 / -1;">
-                    <h3>📈 ความดันโลหิต และ ชีพจร</h3>
-                    <div id="bp-container" style="position: relative; height: 250px; width: 100%;">
-                        <canvas id="bpChart"></canvas>
-                    </div>
+        <div class="card sugar-check">
+            <h2>🍬 ค่าน้ำตาล (DTX)</h2>
+            <div class="form-group">
+                <label>ระดับน้ำตาลปลายนิ้ว <span style="color:red">*</span></label>
+                <div class="input-wrapper">
+                    <input type="number" id="dtx" placeholder="0" required>
+                    <span class="unit">mg/dL</span>
                 </div>
-                <div class="chart-box">
-                    <h3>📉 แนวโน้มน้ำตาล</h3>
-                    <div class="chart-container-height" style="position: relative; height: 200px; width: 100%;">
-                        <canvas id="sugarChart"></canvas>
-                    </div>
-                </div>
-                <div class="chart-box">
-                    <h3>⚖️ แนวโน้มน้ำหนัก</h3>
-                    <div class="chart-container-height" style="position: relative; height: 200px; width: 100%;">
-                        <canvas id="weightChart"></canvas>
-                    </div>
+            </div>
+        </div>
+
+        <div class="card weight-control">
+            <h2>⚖️ ควบคุมน้ำและน้ำหนัก</h2>
+            <div class="form-group">
+                <label>น้ำหนักตอนเช้า (หลังขับถ่าย) <span style="color:red">*</span></label>
+                <div class="input-wrapper">
+                    <input type="number" step="0.1" id="weight" placeholder="0.0" required>
+                    <span class="unit">กก.</span>
                 </div>
             </div>
             
-            <div id="print-date" style="display:none; text-align: right; color: #999; margin-top: 10px; font-size: 0.8rem;"></div>
+            <div class="form-group">
+                <label>เช็คอาการบวม (กดหน้าแข้ง) <span style="color:red">*</span></label>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="edema" value="no" checked> ไม่บวม
+                    </label>
+                    <label class="radio-label" style="color: var(--danger-color);">
+                        <input type="radio" name="edema" value="yes"> มีรอยบุ๋ม
+                    </label>
+                </div>
+            </div>
         </div>
+
+        <div class="card kidney-care">
+            <h2>🩸 การดูแลโรคไต</h2>
+            <p style="font-size: 0.85rem; color: #888; margin-bottom: 15px;">*(กรอกเฉพาะวันที่มีรอบฟอกไต หากไม่มีให้ข้ามได้เลย)</p>
+            
+            <div class="form-group">
+                <label>วันที่ฟอกไต</label>
+                <input type="date" id="dialysisDate">
+            </div>
+
+            <div class="form-group">
+                <label>เส้นฟอกไต</label>
+                <div class="radio-group">
+                    <label class="radio-label" style="color: var(--success-color);">
+                        <input type="radio" name="dialysis_line" value="have" checked> มี
+                    </label>
+                    <label class="radio-label" style="color: #666;">
+                        <input type="radio" name="dialysis_line" value="none"> ไม่มี
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>น้ำดึงออก (UF)</label>
+                <div class="input-wrapper">
+                    <input type="number" step="0.01" id="uf" placeholder="0.00">
+                    <span class="unit">ลิตร</span>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" id="submitBtn" class="btn-save">บันทึกข้อมูลวันนี้</button>
+    </form>
+</div>
+
+<div id="successModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="success-icon">✅</div>
+        <h2 style="color: var(--success-color); margin-bottom: 5px;">บันทึกสำเร็จ!</h2>
+        <p style="color: #666; font-size: 0.9rem;">ข้อมูลถูกส่งเข้าระบบเรียบร้อยแล้ว</p>
+        <button class="modal-btn" onclick="closeModal()">ตกลง</button>
     </div>
 </div>
 
 <script>
-    // 🔴 ใส่ลิงก์ CSV ใหม่ของคุณตรงนี้ (ผมอัปเดตให้แล้ว)
-    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6joLS4GAuu3gDN9KrSVMfLYn6snVN4W26iZCiyCHf4jhy6LlCEvIyW210aUYFOsQvHUlJpLPpbZqw/pub?output=csv';
+    const WEBHOOK_URL = 'https://n8n-p2sw2ng.p2scalw2ng.xyz/webhook-test/412b1b48-9da4-4973-8276-71548215ec93'; 
 
-    let rawData = [];
-    let chartBP, chartSugar, chartWeight;
+    const form = document.getElementById('healthForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const modal = document.getElementById('successModal');
 
-    window.onload = function() { fetchData(); };
-
-    function fetchData() {
-        // 🔴 เทคนิคพิเศษ: เติม &t=เวลาปัจจุบัน เพื่อบังคับโหลดไฟล์ใหม่ ไม่ให้ติด Cache
-        const bustCacheUrl = CSV_URL + '&t=' + new Date().getTime();
-
-        Papa.parse(bustCacheUrl, {
-            download: true, header: true, 
-            complete: function(results) {
-                rawData = results.data
-                    .filter(row => row['Time'] && row['Time'].trim() !== '') 
-                    .map(row => ({
-                        date: row['Time'],
-                        bp_sys: parseFloat(row['bp_sys']),
-                        bp_dia: parseFloat(row['bp_dia']),
-                        pulse: parseFloat(row['ชีพจร']),
-                        sugar: parseFloat(row['ค่าน้ำตาล']),
-                        weight: parseFloat(row['weight']),
-                        line: row['dialysis_line']
-                    }));
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('dashboard-content').style.display = 'block';
-                updateDashboard('all'); 
-            },
-            error: function(err) { console.error('Error:', err); }
-        });
+    function closeModal() {
+        modal.style.display = 'none';
+        form.reset();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function updateDashboard(range) {
-        document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('btn-' + range).classList.add('active');
-        renderCards();
-        let chartData = [...rawData];
-        if (range === '7') chartData = chartData.slice(-7);
-        else if (range === '15') chartData = chartData.slice(-15);
-        else if (range === '30') chartData = chartData.slice(-30);
-        renderCharts(chartData);
-    }
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
 
-    function renderCards() {
-        if (rawData.length === 0) return;
-        const latest = rawData[rawData.length - 1];
-        document.getElementById('disp-weight').innerText = latest.weight || '-';
-        document.getElementById('disp-sugar').innerText = latest.sugar || '-';
-        const lineEl = document.getElementById('disp-line');
-        if (latest.line && latest.line.toLowerCase().includes('have')) {
-            lineEl.innerText = "✔ มี"; lineEl.className = "status-badge status-have";
-        } else {
-            lineEl.innerText = "✖ ไม่มี"; lineEl.className = "status-badge status-none";
+        // ตรวจสอบว่าฟอร์มผ่านการตรวจสอบ (Validation) หรือยัง
+        if (!form.checkValidity()) {
+            form.reportValidity(); // ถ้ายัง ให้ Browser แจ้งเตือนจุดที่ยังไม่กรอก
+            return;
         }
-    }
 
-    function renderCharts(data) {
-        const labels = data.map(d => d.date);
-        
-        const flowAnimation = {
-            duration: 1500, easing: 'easeOutQuart',
-            delay: (context) => {
-                let delay = 0;
-                if (context.type === 'data' && context.mode === 'default') {
-                    delay = context.dataIndex * 100;
-                }
-                return delay;
+        const originalBtnText = submitBtn.innerText;
+        submitBtn.innerText = '⏳ กำลังส่งข้อมูล...';
+        submitBtn.disabled = true;
+
+        const sys = document.getElementById('bp_sys').value;
+        const dia = document.getElementById('bp_dia').value;
+        const combinedBP = `${sys}/${dia}`; 
+
+        const formData = {
+            timestamp: new Date().toISOString(),
+            bp: combinedBP,
+            bp_sys: sys,
+            bp_dia: dia,
+            pulse: document.getElementById('pulse').value,
+            spo2: document.getElementById('spo2').value,
+            dtx: document.getElementById('dtx').value,
+            weight: document.getElementById('weight').value,
+            edema: document.querySelector('input[name="edema"]:checked').value,
+
+            // ส่วนของไต: ถ้าไม่ได้กรอก จะส่งค่าว่าง "" ไป
+            dialysis_date: document.getElementById('dialysisDate').value,
+            dialysis_line: document.querySelector('input[name="dialysis_line"]:checked') ? document.querySelector('input[name="dialysis_line"]:checked').value : "",
+            uf: document.getElementById('uf').value
+        };
+
+        fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        })
+        .then(response => {
+            if (response.ok) {
+                modal.style.display = 'flex';
+            } else {
+                alert('❌ เกิดข้อผิดพลาดที่เซิร์ฟเวอร์');
             }
-        };
-
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true } } },
-            animations: { y: { easing: 'easeOutQuart', duration: 1000 } }
-        };
-
-        if(chartBP) chartBP.destroy();
-        chartBP = new Chart(document.getElementById('bpChart').getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    { label: 'Sys', data: data.map(d=>d.bp_sys), borderColor: '#dc3545', backgroundColor: '#dc3545', tension: 0.4, pointRadius: 3, borderWidth: 2 },
-                    { label: 'Dia', data: data.map(d=>d.bp_dia), borderColor: '#ffc107', backgroundColor: '#ffc107', tension: 0.4, pointRadius: 3, borderWidth: 2 },
-                    { label: 'Pulse', data: data.map(d=>d.pulse), borderColor: '#28a745', backgroundColor: '#28a745', borderDash: [5,5], tension: 0.4, pointRadius: 3, borderWidth: 2 }
-                ]
-            },
-            options: { ...commonOptions, animation: flowAnimation }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ ส่งข้อมูลไม่สำเร็จ');
+        })
+        .finally(() => {
+            submitBtn.innerText = originalBtnText;
+            submitBtn.disabled = false;
         });
-
-        if(chartSugar) chartSugar.destroy();
-        chartSugar = new Chart(document.getElementById('sugarChart').getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{ label: 'Sugar', data: data.map(d=>d.sugar), backgroundColor: 'rgba(54, 162, 235, 0.7)', borderRadius: 4 }]
-            },
-            options: { ...commonOptions, animation: { duration: 1000, easing: 'easeOutQuart' } }
-        });
-
-        if(chartWeight) chartWeight.destroy();
-        chartWeight = new Chart(document.getElementById('weightChart').getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{ label: 'Weight', data: data.map(d=>d.weight), borderColor: '#ff9f40', backgroundColor: 'rgba(255, 159, 64, 0.2)', fill: true, tension: 0.4, pointRadius: 4, borderWidth: 2 }]
-            },
-            options: { ...commonOptions, animation: flowAnimation }
-        });
-    }
-
-    function exportPDF() {
-        const body = document.body;
-        const filters = document.getElementById('controls-filter');
-        const btnExport = document.getElementById('btn-export');
-        const printDate = document.getElementById('print-date');
-        const element = document.getElementById('capture-area');
-
-        window.scrollTo(0, 0);
-
-        body.classList.add('pdf-mode');
-        filters.style.display = 'none';
-        btnExport.style.display = 'none';
-        printDate.innerText = 'พิมพ์รายงาน: ' + new Date().toLocaleString('th-TH');
-        printDate.style.display = 'block';
-
-        setTimeout(() => {
-            chartBP.resize(); 
-            chartSugar.resize(); 
-            chartWeight.resize();
-
-            const opt = { 
-                margin: 0.2, 
-                filename: 'รายงานสุขภาพ.pdf', 
-                image: { type: 'jpeg', quality: 0.98 }, 
-                html2canvas: { 
-                    scale: 2, 
-                    useCORS: true,
-                    windowWidth: 1200,
-                    width: 1200
-                }, 
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' } 
-            };
-            
-            html2pdf().set(opt).from(element).save().then(() => {
-                body.classList.remove('pdf-mode');
-                filters.style.display = 'flex';
-                btnExport.style.display = 'flex';
-                printDate.style.display = 'none';
-                
-                setTimeout(() => { 
-                    chartBP.resize(); 
-                    chartSugar.resize(); 
-                    chartWeight.resize(); 
-                }, 300);
-            });
-        }, 1000); 
-    }
+    });
 </script>
 
 </body>
